@@ -4,21 +4,21 @@
    [clojure.string :as str]
    [tinysegmenter.core :refer [segment]])
   (:import
-   [nu.pattern OpenCV]
-   [java.awt Frame Graphics2D Point Color Robot Rectangle]
-   [java.awt.event MouseListener MouseMotionListener MouseEvent WindowEvent]
-   [java.awt.image BufferedImage]
-   [java.awt.image BufferedImage]
-   [java.io ByteArrayOutputStream File]
-   [java.io File]
-   [javax.imageio ImageIO]
-   [javax.imageio ImageIO]
-   [javax.swing JFrame JPanel  WindowConstants SwingUtilities]
-   [net.sourceforge.tess4j Tesseract]
-   [org.opencv.core MatOfByte Mat Core Size]
-   [org.opencv.highgui HighGui]
-   [org.opencv.imgproc Imgproc]
-   [org.opencv.imgcodecs Imgcodecs]))
+   (java.awt Color Frame Graphics2D Point Rectangle Robot)
+   (java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent)
+   (java.awt.image BufferedImage)
+   (java.awt.image BufferedImage)
+   (java.io File)
+   (java.io ByteArrayOutputStream File)
+   (javax.imageio ImageIO)
+   (javax.imageio ImageIO)
+   (javax.swing JFrame JPanel SwingUtilities WindowConstants)
+   (net.sourceforge.tess4j Tesseract)
+   (nu.pattern OpenCV)
+   (org.opencv.core Core Mat MatOfByte Size)
+   (org.opencv.highgui HighGui)
+   (org.opencv.imgcodecs Imgcodecs)
+   (org.opencv.imgproc Imgproc)))
 
 (defn image->mat [^BufferedImage image]
   (let [os (new ByteArrayOutputStream)]
@@ -52,7 +52,8 @@
   (doto (new Tesseract)
     (.setDatapath "resources/tessdata")
     (.setLanguage "jpn")
-    (.setPageSegMode 1)
+    ;; use the single character mode because this program is mostly intended for very short text
+    (.setPageSegMode 10)
     (.setOcrEngineMode 1)))
 
 (defn perform-ocr [^BufferedImage img]
@@ -60,9 +61,9 @@
 
 (defn- add-margin [^BufferedImage img]
   (let [padding 50
-        new-w   (+ (.getWidth img) padding)
-        new-h   (+ (.getHeight img) padding)
-        padded  (new BufferedImage new-w new-h (.getType img))
+        new-w (+ (.getWidth img) padding)
+        new-h (+ (.getHeight img) padding)
+        padded (new BufferedImage new-w new-h (.getType img))
         g (.getGraphics padded)]
     (doto g
       (.setColor Color/white)
@@ -80,7 +81,7 @@
   img)
 
 (defn- invert [^Mat img]
-  (Core/bitwise-not img img)
+  (Core/bitwise_not img img)
   img)
 
 (defn- mean-brightness [^Mat img]
@@ -98,13 +99,12 @@
     (Imgproc/morphologyEx img img Imgproc/MORPH_OPEN kernel))
   img)
 
-(defn- bilateral-filter [^Mat img]
-  (let [dest (Mat.)]
-    (Imgproc/bilateralFilter img dest 5 55.0 60.0)
-    dest))
-
 (defn- threshold [^Mat img]
-  (Imgproc/threshold img img 0 255 (+ Imgproc/THRESH_BINARY_INV Imgproc/THRESH_OTSU))
+  (Imgproc/threshold img img 0 255 (+ Imgproc/THRESH_BINARY Imgproc/THRESH_OTSU))
+  img)
+
+(defn- increase-contrast [^Mat img]
+  (Core/convertScaleAbs img img 1.5 0)
   img)
 
 (defn- preprocess-image [^BufferedImage img]
@@ -113,20 +113,19 @@
       (scale)
       (grayscale)
       (invert-if-needed)
-      (remove-noise)
       (mat->image)
       (add-margin)
       (doto (save-image "kek.png"))))
 
 (defn- make-screenshot [window rect]
-  (let [translate  #(when %
-                      (doto (.clone ^Point %)
-                        (SwingUtilities/convertPointToScreen window)))
-        rect       (-> rect
-                       (update :start translate)
-                       (update :end translate))
-        robot      (Robot.)
-        [x y w h]  (rect->xywh rect)]
+  (let [translate #(when %
+                     (doto (.clone ^Point %)
+                       (SwingUtilities/convertPointToScreen window)))
+        rect (-> rect
+                 (update :start translate)
+                 (update :end translate))
+        robot (Robot.)
+        [x y w h] (rect->xywh rect)]
     (when (and x y w h)
       (-> robot
           (.createScreenCapture (Rectangle. x y w h))
@@ -186,9 +185,9 @@
 
 (defn -main []
   (OpenCV/loadLocally)
-  (let [frame  (new JFrame)
-        state  (atom {})
-        panel  (draw-panel state frame)]
+  (let [frame (new JFrame)
+        state (atom {})
+        panel (draw-panel state frame)]
     (doto frame
       (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
       (.setLocationRelativeTo nil)
