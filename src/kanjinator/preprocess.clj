@@ -87,5 +87,5 @@
       (image->mat)
       (process)
       (mat->image)
-      (add-margin)
+      ;;(add-margin)
       (save-image-fn)))
