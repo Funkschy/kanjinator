@@ -2,9 +2,10 @@
   (:gen-class)
   (:require
    [kanjinator.language :refer [perform-ocr split-words]]
-   [kanjinator.languages.jp :refer [japanese]])
+   [kanjinator.languages.jp :refer [japanese]]
+   [clojure.string :as str])
   (:import
-   (java.awt Color Frame Graphics2D Point Rectangle Robot)
+   (java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit)
    (java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent)
    (javax.swing JFrame JPanel SwingUtilities WindowConstants)
    (nu.pattern OpenCV)))
@@ -28,6 +29,7 @@
                  (update :end translate))
         robot (Robot.)
         [x y w h] (rect->xywh rect)]
+    ;; TODO: check min size
     (when (and x y w h)
       (.createScreenCapture robot (Rectangle. x y w h)))))
 
@@ -49,12 +51,16 @@
 (defn draw-panel [state ^JFrame window]
   (let [panel (proxy [JPanel] []
                 (paintComponent [^Graphics2D g]
-                  ;; (proxy-super paintComponent g)
+                  (proxy-super paintComponent g)
                   (let [state @state]
                     (render-selection-rect g state)
                     (process-selection window state))))]
-    (.setBackground panel (Color. 0 0 0 0))
-    panel))
+    (doto panel
+      (.setMinimumSize (.getScreenSize (Toolkit/getDefaultToolkit)))
+      (.setOpaque false)
+      (.setBackground (Color. 0 0 0 1)))))
+
+(def windows? (str/includes? (str/lower-case (System/getProperty "os.name")) "windows"))
 
 (defn mouse-motion-listener [rect ^JFrame frame]
   (proxy [MouseMotionListener] []
@@ -65,7 +71,12 @@
                    (update-in [:rect :start] (fnil identity (.getPoint e)))
                    (assoc-in [:rect :end] (.getPoint e)))))
       ;; update the frame to draw the current rect
-      (.update frame (.getGraphics frame)))
+      ;; I have no idea why, but for some reason one way of updating only works on linux and the
+      ;; other only works on windows. This took me quite a few hours to find.
+      ;; Write once run anywhere btw
+      (if windows?
+        (-> frame .getContentPane .repaint)
+        (.update frame (.getGraphics frame))))
     (mouseMoved [^MouseEvent e])))
 
 (defn mouse-listener [state]
@@ -84,17 +95,19 @@
 
 (defn -main []
   (OpenCV/loadLocally)
-  (let [frame (new JFrame)
-        state (atom {})
-        panel (draw-panel state frame)]
-    (doto frame
-      (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
-      (.setLocationRelativeTo nil)
-      (.setUndecorated true)
-      (.setBackground (Color. 0 0 0 0))
-      (.setExtendedState Frame/MAXIMIZED_BOTH)
-      (.addMouseMotionListener (mouse-motion-listener state frame))
-      (.addMouseListener (mouse-listener state))
-      (.setContentPane panel)
-      (.pack)
-      (.setVisible true))))
+  (SwingUtilities/invokeLater
+   (fn []
+     (let [frame (new JFrame)
+           state (atom {})
+           panel (draw-panel state frame)]
+       (doto frame
+         (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
+         (.setLocationRelativeTo nil)
+         (.setUndecorated true)
+         (.setBackground (Color. 0 0 0 1))
+         (.addMouseMotionListener (mouse-motion-listener state frame))
+         (.addMouseListener (mouse-listener state))
+         (.setContentPane panel)
+         (.pack)
+         (.setVisible true)
+         (.setExtendedState Frame/MAXIMIZED_BOTH))))))
