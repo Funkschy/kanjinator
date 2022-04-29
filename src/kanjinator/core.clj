@@ -2,8 +2,7 @@
   (:gen-class)
   (:require
    [kanjinator.language :refer [perform-ocr split-words]]
-   [kanjinator.languages.jp :refer [japanese]]
-   [kanjinator.preprocess :refer [default-process-pipeline preprocess-image]])
+   [kanjinator.languages.jp :refer [japanese]])
   (:import
    (java.awt Color Frame Graphics2D Point Rectangle Robot)
    (java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent)
@@ -30,9 +29,7 @@
         robot (Robot.)
         [x y w h] (rect->xywh rect)]
     (when (and x y w h)
-      (-> robot
-          (.createScreenCapture (Rectangle. x y w h))
-          (preprocess-image default-process-pipeline)))))
+      (.createScreenCapture robot (Rectangle. x y w h)))))
 
 (defn- render-selection-rect [^Graphics2D g state]
   (when-let [[x y w h] (-> state :rect rect->xywh)]
@@ -95,9 +92,7 @@
       (.setLocationRelativeTo nil)
       (.setUndecorated true)
       (.setBackground (Color. 0 0 0 0))
-      (.setExtendedState Frame/MAXIMIZED_BOTH))
-
-    (doto frame
+      (.setExtendedState Frame/MAXIMIZED_BOTH)
       (.addMouseMotionListener (mouse-motion-listener state frame))
       (.addMouseListener (mouse-listener state))
       (.setContentPane panel)

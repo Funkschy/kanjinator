@@ -4,7 +4,8 @@
    (net.sourceforge.tess4j Tesseract))
   (:require
    [kanjinator.language :refer [Language]]
-   [tinysegmenter.core :refer [segment]]))
+   [tinysegmenter.core :refer [segment]]
+   [kanjinator.preprocess :refer [preprocess-image default-process-pipeline]]))
 
 (def ^:private ^Tesseract tesseract-single
   (doto (new Tesseract)
@@ -31,7 +32,8 @@
 (defrecord Japanese []
   Language
   (perform-ocr [_ img]
-    (let [single (future (.doOCR tesseract-single ^BufferedImage img))
+    (let [img    (preprocess-image img default-process-pipeline)
+          single (future (.doOCR tesseract-single ^BufferedImage img))
           multi  (future (.doOCR tesseract-multi ^BufferedImage img))]
       ;; choose the better model by counting the number of recognized japanese characters
       (max-key num-jp-chars @single @multi)))
