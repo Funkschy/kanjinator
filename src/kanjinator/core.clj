@@ -1,44 +1,16 @@
 (ns kanjinator.core
   (:gen-class)
   (:require
-   [clojure.string :as str]
-   [tinysegmenter.core :refer [segment]])
+   [kanjinator.language :refer [perform-ocr split-words]]
+   [kanjinator.languages.jp :refer [japanese]]
+   [kanjinator.preprocess :refer [default-process-pipeline preprocess-image]])
   (:import
    (java.awt Color Frame Graphics2D Point Rectangle Robot)
    (java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent)
-   (java.awt.image BufferedImage)
-   (java.awt.image BufferedImage)
-   (java.io File)
-   (java.io ByteArrayOutputStream File)
-   (javax.imageio ImageIO)
-   (javax.imageio ImageIO)
    (javax.swing JFrame JPanel SwingUtilities WindowConstants)
-   (net.sourceforge.tess4j Tesseract)
-   (nu.pattern OpenCV)
-   (org.opencv.core Core Mat MatOfByte Size)
-   (org.opencv.highgui HighGui)
-   (org.opencv.imgcodecs Imgcodecs)
-   (org.opencv.imgproc Imgproc)))
+   (nu.pattern OpenCV)))
 
-(defn image->mat [^BufferedImage image]
-  (let [os (new ByteArrayOutputStream)]
-    (ImageIO/write image "png" os)
-    (.flush os)
-    (Imgcodecs/imdecode (MatOfByte. (.toByteArray os)) Imgcodecs/IMREAD_UNCHANGED)))
-
-(defn mat->image [mat]
-  (HighGui/toBufferedImage mat))
-
-(defprotocol SaveImage
-  (save-image [img path]))
-
-(extend-protocol SaveImage
-  Mat
-  (save-image [img path]
-    (Imgcodecs/imwrite path img))
-  BufferedImage
-  (save-image [^BufferedImage img ^String path]
-    (ImageIO/write ^BufferedImage img ^String (peek (str/split path #"\.")) (File. path))))
+(def language (japanese))
 
 (defn rect->xywh [rect]
   (let [{:keys [^Point start ^Point end]} rect]
@@ -47,75 +19,6 @@
        (min (.getY start) (.getY end))
        (abs (- (.getX end) (.getX start)))
        (abs (- (.getY end) (.getY start)))])))
-
-(def ^Tesseract tesseract
-  (doto (new Tesseract)
-    (.setDatapath "resources/tessdata")
-    (.setLanguage "jpn")
-    ;; use the single character mode because this program is mostly intended for very short text
-    (.setPageSegMode 10)
-    (.setOcrEngineMode 1)))
-
-(defn perform-ocr [^BufferedImage img]
-  (.doOCR tesseract img))
-
-(defn- add-margin [^BufferedImage img]
-  (let [padding 50
-        new-w (+ (.getWidth img) padding)
-        new-h (+ (.getHeight img) padding)
-        padded (new BufferedImage new-w new-h (.getType img))
-        g (.getGraphics padded)]
-    (doto g
-      (.setColor Color/white)
-      (.fillRect 0 0 new-w new-h)
-      (.drawImage img (/ padding 2) (/ padding 2) nil)
-      (.dispose))
-    padded))
-
-(defn- scale [^Mat img]
-  (Imgproc/pyrUp img img)
-  img)
-
-(defn- grayscale [^Mat img]
-  (Imgproc/cvtColor img img Imgproc/COLOR_BGR2GRAY)
-  img)
-
-(defn- invert [^Mat img]
-  (Core/bitwise_not img img)
-  img)
-
-(defn- mean-brightness [^Mat img]
-  (let [^doubles vals (.-val (Core/mean img))]
-    (areduce vals i ret 0.0 (+ ret (aget vals i)))))
-
-(defn invert-if-needed [^Mat img]
-  (let [brightness (mean-brightness img)]
-    (if (< brightness 100)
-      (invert img)
-      img)))
-
-(defn- remove-noise [^Mat img]
-  (let [kernel (Imgproc/getStructuringElement Imgproc/MORPH_RECT (Size. 2 2))]
-    (Imgproc/morphologyEx img img Imgproc/MORPH_OPEN kernel))
-  img)
-
-(defn- threshold [^Mat img]
-  (Imgproc/threshold img img 0 255 (+ Imgproc/THRESH_BINARY Imgproc/THRESH_OTSU))
-  img)
-
-(defn- increase-contrast [^Mat img]
-  (Core/convertScaleAbs img img 1.5 0)
-  img)
-
-(defn- preprocess-image [^BufferedImage img]
-  (-> img
-      (image->mat)
-      (scale)
-      (grayscale)
-      (invert-if-needed)
-      (mat->image)
-      (add-margin)
-      (doto (save-image "kek.png"))))
 
 (defn- make-screenshot [window rect]
   (let [translate #(when %
@@ -129,7 +32,7 @@
     (when (and x y w h)
       (-> robot
           (.createScreenCapture (Rectangle. x y w h))
-          (preprocess-image)))))
+          (preprocess-image default-process-pipeline)))))
 
 (defn- render-selection-rect [^Graphics2D g state]
   (when-let [[x y w h] (-> state :rect rect->xywh)]
@@ -141,9 +44,8 @@
   (when-let [screenshot-rect (:screenshot-rect state)]
     (let [screenshot (make-screenshot window screenshot-rect)]
       (->> screenshot
-           (perform-ocr)
-           (remove #(Character/isWhitespace ^char %))
-           (segment)
+           (perform-ocr language)
+           (split-words language)
            (prn))
       (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING)))))
 
