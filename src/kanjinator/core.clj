@@ -1,7 +1,8 @@
 (ns kanjinator.core
   (:gen-class)
   (:require
-   [kanjinator.language :refer [perform-ocr split-words]]
+   [kanjinator.dictionaries.spec]
+   [kanjinator.language :refer [perform-ocr split-words lookup]]
    [kanjinator.languages.jp :refer [japanese]]
    [clojure.string :as str])
   (:import
@@ -45,6 +46,7 @@
       (->> screenshot
            (perform-ocr language)
            (split-words language)
+           (map (partial lookup language))
            (prn))
       (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING)))))
 

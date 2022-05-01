@@ -1,11 +1,12 @@
 (ns kanjinator.languages.jp
-  (:import
-   (java.awt.image BufferedImage)
-   (net.sourceforge.tess4j Tesseract))
   (:require
    [kanjinator.language :refer [Language]]
+   [kanjinator.preprocess :refer [default-process-pipeline preprocess-image]]
    [tinysegmenter.core :refer [segment]]
-   [kanjinator.preprocess :refer [preprocess-image default-process-pipeline]]))
+   [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]])
+  (:import
+   [java.awt.image BufferedImage]
+   [net.sourceforge.tess4j Tesseract]))
 
 (def ^:private ^Tesseract tesseract-single
   (doto (new Tesseract)
@@ -39,8 +40,12 @@
       (max-key num-jp-chars @single @multi)))
   (split-words [_ text]
     (->> text
-         (remove #(Character/isWhitespace ^char %))
-         (segment))))
+         (re-seq jp-regex)
+         (map first)
+         (apply str)
+         (segment)))
+  (lookup [_ word]
+    (lookup-word-in-dictionary word)))
 
 (defn japanese []
   (Japanese.))
