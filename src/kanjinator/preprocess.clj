@@ -2,17 +2,14 @@
   (:require
    [clojure.string :as str])
   (:import
-   (java.awt Color)
-   (java.awt.image BufferedImage)
-   (java.awt.image BufferedImage)
-   (java.io File)
-   (java.io ByteArrayOutputStream File)
-   (javax.imageio ImageIO)
-   (javax.imageio ImageIO)
-   (org.opencv.core Core Mat MatOfByte Size)
-   (org.opencv.highgui HighGui)
-   (org.opencv.imgcodecs Imgcodecs)
-   (org.opencv.imgproc Imgproc)))
+   [java.awt Color]
+   [java.awt.image BufferedImage]
+   [java.io ByteArrayOutputStream File]
+   [javax.imageio ImageIO]
+   [org.opencv.core Core Mat MatOfByte Size]
+   [org.opencv.highgui HighGui]
+   [org.opencv.imgcodecs Imgcodecs]
+   [org.opencv.imgproc Imgproc]))
 
 (defn image->mat [^BufferedImage image]
   (let [os (new ByteArrayOutputStream)]

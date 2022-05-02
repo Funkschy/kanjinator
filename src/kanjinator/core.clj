@@ -6,10 +6,10 @@
    [kanjinator.languages.jp :refer [japanese]]
    [clojure.string :as str])
   (:import
-   (java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit)
-   (java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent)
-   (javax.swing JFrame JPanel SwingUtilities WindowConstants)
-   (nu.pattern OpenCV)))
+   [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit]
+   [java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent]
+   [javax.swing JFrame JPanel SwingUtilities WindowConstants]
+   [nu.pattern OpenCV]))
 
 (def language (japanese))
 
