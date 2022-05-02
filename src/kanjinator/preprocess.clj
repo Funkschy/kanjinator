@@ -2,11 +2,10 @@
   (:require
    [clojure.string :as str])
   (:import
-   [java.awt Color]
    [java.awt.image BufferedImage]
    [java.io ByteArrayOutputStream File]
    [javax.imageio ImageIO]
-   [org.opencv.core Core Mat MatOfByte Size]
+   [org.opencv.core Core Mat MatOfByte Size Scalar]
    [org.opencv.highgui HighGui]
    [org.opencv.imgcodecs Imgcodecs]
    [org.opencv.imgproc Imgproc]))
@@ -20,24 +19,11 @@
 (defn mat->image [mat]
   (HighGui/toBufferedImage mat))
 
-(defn- add-margin [^BufferedImage img]
-  (let [padding 50
-        new-w (+ (.getWidth img) padding)
-        new-h (+ (.getHeight img) padding)
-        padded (new BufferedImage new-w new-h (.getType img))
-        g (.getGraphics padded)]
-    (doto g
-      (.setColor Color/white)
-      (.fillRect 0 0 new-w new-h)
-      (.drawImage img (/ padding 2) (/ padding 2) nil)
-      (.dispose))
-    padded))
-
-(defn- scale [^Mat img]
+(defn scale [^Mat img]
   (Imgproc/pyrUp img img)
   img)
 
-(defn- grayscale [^Mat img]
+(defn grayscale [^Mat img]
   (Imgproc/cvtColor img img Imgproc/COLOR_BGR2GRAY)
   img)
 
@@ -55,17 +41,21 @@
       (invert img)
       img)))
 
-(defn- remove-noise [^Mat img]
+(defn remove-noise [^Mat img]
   (let [kernel (Imgproc/getStructuringElement Imgproc/MORPH_RECT (Size. 2 2))]
     (Imgproc/morphologyEx img img Imgproc/MORPH_OPEN kernel))
   img)
 
-(defn- threshold [^Mat img]
+(defn threshold [^Mat img]
   (Imgproc/threshold img img 0 255 (+ Imgproc/THRESH_BINARY Imgproc/THRESH_OTSU))
   img)
 
-(defn- increase-contrast [^Mat img]
+(defn increase-contrast [^Mat img]
   (Core/convertScaleAbs img img 1.5 0)
+  img)
+
+(defn add-white-margin [^Mat img]
+  (Core/copyMakeBorder img img 20 20 20 20 Core/BORDER_CONSTANT (Scalar. 255 255 255))
   img)
 
 (defn- save-image [^BufferedImage img ^String path]
@@ -76,13 +66,14 @@
     #(doto % (save-image "debug.png"))
     identity))
 
-(def ^:private default-process-pipeline-functions [scale grayscale invert-if-needed])
-(def default-process-pipeline (apply comp (reverse default-process-pipeline-functions)))
+(defn- make-process-pipeline [functions]
+  (->> functions
+       (reverse)
+       (apply comp)))
 
-(defn preprocess-image [^BufferedImage img process]
+(defn preprocess-image [^BufferedImage img process-functions]
   (-> img
       (image->mat)
-      (process)
+      ((make-process-pipeline process-functions))
       (mat->image)
-      ;;(add-margin)
       (save-image-fn)))

@@ -1,8 +1,10 @@
 (ns kanjinator.languages.jp
   (:require
+   [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]]
    [kanjinator.language :refer [Language]]
-   [kanjinator.preprocess :refer [default-process-pipeline preprocess-image]]
-   [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]])
+   [kanjinator.preprocess :refer [preprocess-image scale grayscale invert-if-needed add-white-margin]]
+   [kanjinator.config :refer [config]]
+   [clojure.tools.logging :as log])
   (:import
    [com.atilika.kuromoji.ipadic Token Tokenizer]
    [java.awt.image BufferedImage]
@@ -27,6 +29,7 @@
   (parts-of-speech-2 (.getPartOfSpeechLevel2 t)))
 
 (defn- segment [part-wanted? text]
+  (log/info "segmenting:" text)
   (let [tokens (.tokenize (new Tokenizer) text)
         base   (fn [^Token t] (.getBaseForm t))
         take?  (fn [^Token t]
@@ -65,20 +68,29 @@
   (->> (re-seq jp-regex text)
        (transduce count-pattern-chars +)))
 
+(defn- preprocess [img]
+  (preprocess-image img [scale grayscale invert-if-needed add-white-margin]))
+
+(defn- perform-orc [img]
+  (let [single (future (.doOCR tesseract-single ^BufferedImage img))
+        multi  (future (.doOCR tesseract-multi ^BufferedImage img))]
+    ;; choose the better model by counting the number of recognized japanese characters
+    (max-key num-jp-chars @single @multi)))
+
+(defn- split&filter-words [text]
+  (->> text
+       (re-seq jp-regex)
+       (map first)
+       (apply str)
+       (segment (get-in config [:languages :jp :relevant-word-groups]))))
+
 (defrecord Japanese []
   Language
-  (perform-ocr [_ img]
-    (let [img    (preprocess-image img default-process-pipeline)
-          single (future (.doOCR tesseract-single ^BufferedImage img))
-          multi  (future (.doOCR tesseract-multi ^BufferedImage img))]
-      ;; choose the better model by counting the number of recognized japanese characters
-      (max-key num-jp-chars @single @multi)))
-  (split-words [_ text]
-    (->> text
-         (re-seq jp-regex)
-         (map first)
-         (apply str)
-         (segment #{:noun :verb :adjective})))
+  (get-ocr-words [_ img]
+    (-> img
+        (preprocess)
+        (perform-orc)
+        (split&filter-words)))
   (lookup [_ word]
     (lookup-word-in-dictionary word)))
 
