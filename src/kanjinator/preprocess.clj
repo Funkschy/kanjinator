@@ -1,6 +1,8 @@
 (ns kanjinator.preprocess
   (:require
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [clojure.repl :as repl]
+   [clojure.tools.logging :as log])
   (:import
    [java.awt.image BufferedImage]
    [java.io ByteArrayOutputStream File]
@@ -72,6 +74,11 @@
        (apply comp)))
 
 (defn preprocess-image [^BufferedImage img process-functions]
+  (when (log/enabled? :info)
+    (->> process-functions
+         (map (comp repl/demunge str))
+         (str/join ", ")
+         (log/info "preprocessing with:")))
   (-> img
       (image->mat)
       ((make-process-pipeline process-functions))

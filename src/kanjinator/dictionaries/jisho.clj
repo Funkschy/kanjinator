@@ -1,7 +1,8 @@
 (ns kanjinator.dictionaries.jisho
   (:require
    [clojure.data.json :as json]
-   [clojure.set :as s])
+   [clojure.set :as s]
+   [clojure.tools.logging :as log])
   (:import
    [java.net URLEncoder]
    [java.nio.charset StandardCharsets]))
@@ -60,6 +61,7 @@
 (defn lookup-word-in-dictionary
   "Perform a dictionary lookup for the supplied word. This will return a valid :dict/entries"
   [word]
+  (log/info "jisho lookup:" word)
   (let [data (-> (get-from-jisho-api word)
                  (json/read-str)
                  (get "data"))
