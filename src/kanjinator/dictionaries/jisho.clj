@@ -55,7 +55,9 @@
                                #(re-find homograph-slug-regex %)
                                #(get % "slug"))
                          data)
-        most-important (get-in data [0 "slug"])]
+        most-important (->> (get-in data [0 "slug"])
+                            (re-find homograph-slug-regex)
+                            (second))]
     (groups most-important)))
 
 (defn lookup-word-in-dictionary
