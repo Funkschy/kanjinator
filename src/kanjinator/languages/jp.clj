@@ -2,7 +2,7 @@
   (:require
    [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]]
    [kanjinator.language :refer [Language]]
-   [kanjinator.preprocess :refer [preprocess-image scale grayscale invert-if-needed add-white-margin]]
+   [kanjinator.preprocess :refer [preprocess-image scale grayscale invert-if-needed add-white-margin threshold sharpen]]
    [kanjinator.config :refer [config]]
    [clojure.tools.logging :as log])
   (:import
@@ -69,7 +69,7 @@
        (transduce count-pattern-chars +)))
 
 (defn- preprocess [img]
-  (preprocess-image img [scale grayscale invert-if-needed add-white-margin]))
+  (preprocess-image img [scale grayscale invert-if-needed sharpen threshold add-white-margin]))
 
 (defn- perform-orc [img]
   (let [single (future (.doOCR tesseract-single ^BufferedImage img))

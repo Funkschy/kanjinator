@@ -49,8 +49,14 @@
   img)
 
 (defn threshold [^Mat img]
-  (Imgproc/threshold img img 0 255 (+ Imgproc/THRESH_BINARY Imgproc/THRESH_OTSU))
+  (Imgproc/threshold img img 127 255 (+ Imgproc/THRESH_BINARY Imgproc/THRESH_OTSU))
   img)
+
+(defn sharpen [^Mat img]
+  (let [temp (Mat.)]
+    (Imgproc/GaussianBlur img temp (Size. 0 0) 3.0)
+    (Core/addWeighted img 1.5 temp -0.5 0 temp)
+    temp))
 
 (defn increase-contrast [^Mat img]
   (Core/convertScaleAbs img img 1.5 0)
