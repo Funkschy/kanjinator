@@ -1,12 +1,16 @@
 (ns kanjinator.ui
   (:require
-   [clojure.string :as str]
-   [kanjinator.config :refer [config]]
+   [kanjinator.config :refer [config windows?]]
    [kanjinator.language :refer [get-ocr-words lookup]])
   (:import
    [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit]
    [java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent]
    [javax.swing JFrame JPanel SwingUtilities WindowConstants]))
+
+(def bg-color
+  (if windows?
+    (Color. 0 0 0 1) ;; windows can't handle pure tranparency
+    (Color. 0 0 0 0)))
 
 (defn rect->xywh [rect]
   (let [{:keys [^Point start ^Point end]} rect]
@@ -56,9 +60,7 @@
     (doto panel
       (.setMinimumSize (.getScreenSize (Toolkit/getDefaultToolkit)))
       (.setOpaque false)
-      (.setBackground (Color. 0 0 0 1)))))
-
-(def windows? (str/includes? (str/lower-case (System/getProperty "os.name")) "windows"))
+      (.setBackground bg-color))))
 
 (defn mouse-motion-listener [rect ^JFrame frame]
   (proxy [MouseMotionListener] []
@@ -101,7 +103,7 @@
          (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
          (.setLocationRelativeTo nil)
          (.setUndecorated true)
-         (.setBackground (Color. 0 0 0 1))
+         (.setBackground bg-color)
          (.addMouseMotionListener (mouse-motion-listener state frame))
          (.addMouseListener (mouse-listener state))
          (.setContentPane panel)

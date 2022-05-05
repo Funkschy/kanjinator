@@ -1,7 +1,7 @@
 (ns kanjinator.logging
   (:require [clojure.tools.logging.impl :as log]
             [kanjinator.config :refer [config]])
-  (:import [java.util.logging LogRecord Logger FileHandler Formatter Level]
+  (:import [java.util.logging LogRecord Logger FileHandler Formatter Level ConsoleHandler Handler]
            [java.time Instant ZoneId LocalDateTime]
            [java.time.format DateTimeFormatter]))
 
@@ -58,8 +58,9 @@
         limit           (or (:limit config) 4096)
         cnt             (or (:count config) 2)
         time-fmt-string (or (:date-time-formatter config) "yyyy-MM-dd HH:mm:ss")
-        handler         (when (:file config) (file-handler (:file config) limit cnt append))]
-    (when handler (.setFormatter ^FileHandler handler (formatter time-fmt-string)))
+        handler         (cond (:file config) (file-handler (:file config) limit cnt append)
+                              :else          (new ConsoleHandler))]
+    (.setFormatter ^Handler handler (formatter time-fmt-string))
 
     (memoize
      (fn [logger-name]

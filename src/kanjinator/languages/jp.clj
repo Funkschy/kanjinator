@@ -1,10 +1,11 @@
 (ns kanjinator.languages.jp
   (:require
+   [clojure.tools.logging :as log]
+   [kanjinator.config :refer [config windows?]]
    [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]]
    [kanjinator.language :refer [Language]]
-   [kanjinator.preprocess :refer [preprocess-image scale grayscale invert-if-needed add-white-margin threshold sharpen]]
-   [kanjinator.config :refer [config]]
-   [clojure.tools.logging :as log])
+   [kanjinator.preprocess :refer [add-white-margin grayscale invert-if-needed
+                                  preprocess-image scale sharpen threshold]])
   (:import
    [com.atilika.kuromoji.ipadic Token Tokenizer]
    [java.awt.image BufferedImage]
@@ -46,8 +47,14 @@
     ;;   (println (.getPartOfSpeechLevel1 t) (.getSurface t) (.getBaseForm t) (.getPartOfSpeechLevel2 t)))
     (transduce xf conj tokens)))
 
+(def ^:private trash-file
+  (if windows?
+    "nul"
+    "/dev/null"))
+
 (def ^:private ^Tesseract tesseract-single
   (doto (new Tesseract)
+    (.setVariable "debug_file" trash-file)
     (.setDatapath "resources/tessdata")
     (.setLanguage "jpn")
     ;; use the single character mode because this program is mostly intended for very short text
@@ -56,6 +63,7 @@
 
 (def ^:private ^Tesseract tesseract-multi
   (doto (new Tesseract)
+    (.setVariable "debug_file" trash-file)
     (.setDatapath "resources/tessdata")
     (.setLanguage "jpn")
     ;; use the page segmentation as a backup incase the text is longer than expected
@@ -74,6 +82,8 @@
 (defn- perform-orc [img]
   (let [single (future (.doOCR tesseract-single ^BufferedImage img))
         multi  (future (.doOCR tesseract-multi ^BufferedImage img))]
+    (log/info "single char:" @single)
+    (log/info "words:" @multi)
     ;; choose the better model by counting the number of recognized japanese characters
     (max-key num-jp-chars @single @multi)))
 
