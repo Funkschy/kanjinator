@@ -1,11 +1,11 @@
 (ns kanjinator.ui
   (:require
+   [clojure.string :as str]
    [kanjinator.config :refer [config windows?]]
-   [kanjinator.language :refer [get-ocr-words lookup]]
-   [clojure.string :as str])
+   [kanjinator.language :refer [get-ocr-words lookup]])
   (:import
    [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit Font]
-   [java.awt.event MouseEvent MouseListener MouseMotionListener]
+   [java.awt.event MouseEvent FocusEvent MouseListener MouseMotionListener FocusListener]
    [javax.swing JFrame JPanel SwingUtilities WindowConstants JLabel BoxLayout]
    [javax.swing.border EmptyBorder]))
 
@@ -31,8 +31,7 @@
                  (update :end translate))
         robot (Robot.)
         [x y w h] (rect->xywh rect)]
-    ;; TODO: check min size
-    (when (and x y w h)
+    (when (and x y w h (> w 10) (> h 10))
       (.createScreenCapture robot (Rectangle. x y w h)))))
 
 (defn- result-panel [entries]
@@ -43,7 +42,7 @@
     (doseq [e entries]
       (let [term    (:dict/search-term e)
             e-panel (JPanel.)
-            label   (JLabel. term)]
+            label   (JLabel. ^String term)]
         (.setFont label (Font. (.getName font) (.getStyle font) 24))
         (.setLayout e-panel (BoxLayout. e-panel BoxLayout/Y_AXIS))
         (.add e-panel label)
@@ -56,15 +55,25 @@
         (.add panel e-panel)))
     panel))
 
+(defn focus-listener []
+  (proxy [FocusListener] []
+    (focusGained [^FocusEvent e])
+    (focusLost [^FocusEvent e]
+      ;; exit the application when the user clicks on something else
+      (System/exit 0))))
+
 (defn- display-results [^JFrame window rect entries]
-  (prn rect entries)
-  (doto window
-    (.setExtendedState Frame/NORMAL)
-    (.setLocation (:end rect))
-    (.setContentPane (result-panel entries))
-    (.setBackground (Color. 255 255 255 255))
-    (.pack)
-    (.setVisible true)))
+  (.dispose window)
+  ;; just reusing the old window works on linux, but for some reason not on windows
+  ;; so just dispose the old one and make a new one
+  (when-not (empty? entries)
+    (doto (new JFrame)
+      (.setLocation (:end rect))
+      (.setUndecorated true)
+      (.setContentPane (result-panel entries))
+      (.addFocusListener (focus-listener))
+      (.pack)
+      (.setVisible true))))
 
 (defn- render-selection-rect [^Graphics2D g state]
   (when-let [[x y w h] (-> state :rect rect->xywh)]
@@ -73,9 +82,9 @@
       (.fillRect x y w h))))
 
 (defn- process-selection [^JFrame window state]
-  (when-let [screenshot-rect (:screenshot-rect state)]
-    (let [screenshot (make-screenshot window screenshot-rect)
-          language   ((resolve (get config :current-language)))]
+  (when-let [screenshot (make-screenshot window (:screenshot-rect state))]
+    (let [language        ((resolve (get config :current-language)))
+          screenshot-rect (:screenshot-rect state)]
       (.setVisible window false)
       (.setContentPane window (JPanel.))
       (->> screenshot
