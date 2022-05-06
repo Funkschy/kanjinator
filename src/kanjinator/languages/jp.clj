@@ -5,11 +5,13 @@
    [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]]
    [kanjinator.language :refer [Language]]
    [kanjinator.preprocess :refer [add-white-margin grayscale invert-if-needed
-                                  preprocess-image scale sharpen threshold]])
+                                  preprocess-image scale sharpen threshold]]
+   [clojure.java.io :refer [resource]])
   (:import
    [com.atilika.kuromoji.ipadic Token Tokenizer]
    [java.awt.image BufferedImage]
-   [net.sourceforge.tess4j Tesseract]))
+   [net.sourceforge.tess4j Tesseract]
+   [net.sourceforge.tess4j.util LoadLibs]))
 
 (def ^:private parts-of-speech-1
   {"名詞"   :noun           ;; めいし
@@ -52,23 +54,21 @@
     "nul"
     "/dev/null"))
 
-(def ^:private ^Tesseract tesseract-single
+(defn- new-tesseract [page-seg-mode]
   (doto (new Tesseract)
     (.setVariable "debug_file" trash-file)
-    (.setDatapath "resources/tessdata")
+    (.setDatapath (.getAbsolutePath (LoadLibs/extractTessResources "tessdata")))
     (.setLanguage "jpn")
-    ;; use the single character mode because this program is mostly intended for very short text
-    (.setPageSegMode 10)
+    (.setPageSegMode page-seg-mode)
     (.setOcrEngineMode 1)))
 
+(def ^:private ^Tesseract tesseract-single
+   ;; use the single character mode because this program is mostly intended for very short text
+  (new-tesseract 10))
+
 (def ^:private ^Tesseract tesseract-multi
-  (doto (new Tesseract)
-    (.setVariable "debug_file" trash-file)
-    (.setDatapath "resources/tessdata")
-    (.setLanguage "jpn")
-    ;; use the page segmentation as a backup incase the text is longer than expected
-    (.setPageSegMode 1)
-    (.setOcrEngineMode 1)))
+  ;; use the page segmentation as a backup incase the text is longer than expected
+  (new-tesseract 1))
 
 (def ^:private jp-regex #"([\p{IsHan}\p{IsBopo}\p{IsHira}\p{IsKatakana}]+)")
 (def ^:private count-pattern-chars (map (comp count first)))
