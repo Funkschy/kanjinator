@@ -34,4 +34,4 @@ After starting the program, you can simply select part of your screen by draggin
 
 ## Extend
 
-In contrast to its name, Kanjinator isn't actually built only for japanese. The application is actually language agnostic. If you want to add another language, you just have to implement the Language protocol with regards to the dictionaries/spec.clj. Then you can just change the current-language inside of the config map in config.clj to your language.
+In contrast to its name, Kanjinator isn't actually built only for japanese. The application itself is in fact language agnostic. If you want to add another language, you just have to implement the Language protocol with regards to the dictionaries/spec.clj. Then you can just change the current-language inside of the config map in config.clj to use your language.
