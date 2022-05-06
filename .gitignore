@@ -15,4 +15,4 @@ lsp
 .clj-kondo
 /.lsp/
 /.idea/
-*.png
+/*.png
