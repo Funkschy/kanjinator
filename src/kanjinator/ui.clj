@@ -1,11 +1,13 @@
 (ns kanjinator.ui
   (:require
    [kanjinator.config :refer [config windows?]]
-   [kanjinator.language :refer [get-ocr-words lookup]])
+   [kanjinator.language :refer [get-ocr-words lookup]]
+   [clojure.string :as str])
   (:import
-   [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit]
-   [java.awt.event MouseEvent MouseListener MouseMotionListener WindowEvent]
-   [javax.swing JFrame JPanel SwingUtilities WindowConstants]))
+   [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit Font]
+   [java.awt.event MouseEvent MouseListener MouseMotionListener]
+   [javax.swing JFrame JPanel SwingUtilities WindowConstants JLabel BoxLayout]
+   [javax.swing.border EmptyBorder]))
 
 (def bg-color
   (if windows?
@@ -33,6 +35,37 @@
     (when (and x y w h)
       (.createScreenCapture robot (Rectangle. x y w h)))))
 
+(defn- result-panel [entries]
+  (let [panel (JPanel.)
+        font  (.getFont panel)]
+    (.setBorder panel (EmptyBorder. 10 10 10 10))
+    (.setLayout panel (BoxLayout. panel BoxLayout/Y_AXIS))
+    (doseq [e entries]
+      (let [term    (:dict/search-term e)
+            e-panel (JPanel.)
+            label   (JLabel. term)]
+        (.setFont label (Font. (.getName font) (.getStyle font) 24))
+        (.setLayout e-panel (BoxLayout. e-panel BoxLayout/Y_AXIS))
+        (.add e-panel label)
+        (doseq [w (:dict/words e)]
+          (let [jp    (str/join " " (vals (select-keys w [:dict/writing :dict/reading])))
+                en    (str/join ", " (get w :dict/meanings))
+                label (JLabel. (str jp ": " en))]
+            (.setFont label (Font. (.getName font) (.getStyle font) 14))
+            (.add e-panel label)))
+        (.add panel e-panel)))
+    panel))
+
+(defn- display-results [^JFrame window rect entries]
+  (prn rect entries)
+  (doto window
+    (.setExtendedState Frame/NORMAL)
+    (.setLocation (:end rect))
+    (.setContentPane (result-panel entries))
+    (.setBackground (Color. 255 255 255 255))
+    (.pack)
+    (.setVisible true)))
+
 (defn- render-selection-rect [^Graphics2D g state]
   (when-let [[x y w h] (-> state :rect rect->xywh)]
     (doto g
@@ -44,11 +77,14 @@
     (let [screenshot (make-screenshot window screenshot-rect)
           language   ((resolve (get config :current-language)))]
       (.setVisible window false)
+      (.setContentPane window (JPanel.))
       (->> screenshot
            (get-ocr-words language)
-           (map (partial lookup language))
-           (prn))
-      (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING)))))
+           (mapcat (partial lookup language))
+           (doall)
+           (display-results window screenshot-rect))
+      ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
+      )))
 
 (defn draw-panel [state ^JFrame window]
   (let [panel (proxy [JPanel] []
