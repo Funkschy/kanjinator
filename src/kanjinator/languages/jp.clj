@@ -34,7 +34,11 @@
 (defn- segment [part-wanted? text]
   (log/info "segmenting:" text)
   (let [tokens (.tokenize (new Tokenizer) text)
-        base   (fn [^Token t] (.getBaseForm t))
+        base   (fn [^Token t]
+                 (let [b (.getBaseForm t)]
+                   (if (= "*" b) ;; this will be returned e.g if the word is 'unknown'
+                     (.getSurface t)
+                     b)))
         take?  (fn [^Token t]
                  (and (part-wanted? (part-of-speech-1 t))
                       ;; those are just grammatical forms after a verb that might be classified
