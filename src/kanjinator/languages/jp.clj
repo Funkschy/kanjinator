@@ -16,6 +16,7 @@
   {"名詞"   :noun           ;; めいし
    "助詞"   :particle       ;; じょし
    "形容詞" :adjective      ;; けいようし
+   "副詞"   :adverb         ;; ふくし
    "助動詞" :auxiliary-verb ;; inflecting dependent word = じょどうし (e.g です)
    "動詞"   :verb})         ;; どうし
 
