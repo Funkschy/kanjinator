@@ -63,7 +63,7 @@
     (.setOcrEngineMode 1)))
 
 (def ^:private ^Tesseract tesseract-single
-   ;; use the single character mode because this program is mostly intended for very short text
+  ;; use the single character mode because this program is mostly intended for very short text
   (new-tesseract 10))
 
 (def ^:private ^Tesseract tesseract-multi
@@ -85,7 +85,9 @@
     (log/info "single char:" @single)
     (log/info "words:" @multi)
     ;; choose the better model by counting the number of recognized japanese characters
-    (max-key num-jp-chars @single @multi)))
+    ;; if single and multi return the same number of chars, prefer single because it's more accurate
+    ;; in my experience
+    (max-key num-jp-chars @multi @single)))
 
 (defn- split&filter-words [text]
   (->> text
