@@ -5,8 +5,7 @@
    [kanjinator.dictionaries.jisho :refer [lookup-word-in-dictionary]]
    [kanjinator.language :refer [Language]]
    [kanjinator.preprocess :refer [add-white-margin grayscale invert-if-needed
-                                  preprocess-image scale sharpen threshold]]
-   [clojure.java.io :refer [resource]])
+                                  preprocess-image scale sharpen threshold]])
   (:import
    [com.atilika.kuromoji.ipadic Token Tokenizer]
    [java.awt.image BufferedImage]
@@ -58,21 +57,13 @@
     "nul"
     "/dev/null"))
 
-(defn- new-tesseract [page-seg-mode]
+(defn- ^Tesseract new-tesseract [page-seg-mode language]
   (doto (new Tesseract)
     (.setVariable "debug_file" trash-file)
     (.setDatapath (.getAbsolutePath (LoadLibs/extractTessResources "tessdata")))
-    (.setLanguage "jpn")
+    (.setLanguage language)
     (.setPageSegMode page-seg-mode)
     (.setOcrEngineMode 1)))
-
-(def ^:private ^Tesseract tesseract-single
-  ;; use the single character mode because this program is mostly intended for very short text
-  (new-tesseract 10))
-
-(def ^:private ^Tesseract tesseract-multi
-  ;; use the page segmentation as a backup incase the text is longer than expected
-  (new-tesseract 1))
 
 (def ^:private jp-regex #"([\p{IsHan}\p{IsBopo}\p{IsHira}\p{IsKatakana}]+)")
 (def ^:private count-pattern-chars (map (comp count first)))
@@ -83,11 +74,18 @@
 (defn- preprocess [img]
   (preprocess-image img [scale grayscale invert-if-needed sharpen threshold add-white-margin]))
 
-(defn- perform-orc [img]
-  (let [single (future (.doOCR tesseract-single ^BufferedImage img))
-        multi  (future (.doOCR tesseract-multi ^BufferedImage img))]
+(defn- perform-orc [^BufferedImage img]
+  (let [;; use the single character mode because this program is mostly intended for very short text
+        single      (future (.doOCR (new-tesseract 10 "jpn") img))
+        vertical?   (< (.getWidth img) (.getHeight img))
+        ;; use the page segmentation as a backup in case the text is longer than expected
+        multi-model (if vertical?
+                      ;; use vertical segmentation if the image is higher than its width
+                      (new-tesseract 5 "jpn_vert")
+                      (new-tesseract 1 "jpn"))
+        multi       (future (.doOCR multi-model img))]
     (log/info "single char:" @single)
-    (log/info "words:" @multi)
+    (log/info "words" (if vertical? "(vertical):" "(horizontal):") @multi)
     ;; choose the better model by counting the number of recognized japanese characters
     ;; if single and multi return the same number of chars, prefer single because it's more accurate
     ;; in my experience
