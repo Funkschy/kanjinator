@@ -62,13 +62,17 @@
       ;; exit the application when the user clicks on something else
       (System/exit 0))))
 
+(defn- get-end-location [{:keys [start end]}]
+  (Point. (max (.getX ^Point start) (.getX ^Point end))
+          (max (.getY ^Point start) (.getY ^Point end))))
+
 (defn- display-results [^JFrame window rect entries]
   (.dispose window)
   ;; just reusing the old window works on linux, but for some reason not on windows
   ;; so just dispose the old one and make a new one
   (when-not (empty? entries)
     (doto (new JFrame)
-      (.setLocation (:end rect))
+      (.setLocation (get-end-location rect))
       (.setUndecorated true)
       (.setContentPane (result-panel entries))
       (.addFocusListener (focus-listener))
