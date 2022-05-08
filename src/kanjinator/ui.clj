@@ -70,14 +70,15 @@
   (.dispose window)
   ;; just reusing the old window works on linux, but for some reason not on windows
   ;; so just dispose the old one and make a new one
-  (when-not (empty? entries)
+  (if-not (empty? entries)
     (doto (new JFrame)
       (.setLocation (get-end-location rect))
       (.setUndecorated true)
       (.setContentPane (result-panel entries))
       (.addFocusListener (focus-listener))
       (.pack)
-      (.setVisible true))))
+      (.setVisible true))
+    (System/exit 0)))
 
 (defn- render-selection-rect [^Graphics2D g state]
   (when-let [[x y w h] (-> state :rect rect->xywh)]
