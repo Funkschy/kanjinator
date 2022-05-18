@@ -4,14 +4,14 @@
    [kanjinator.config :refer [config windows?]]
    [kanjinator.language :refer [get-ocr-words lookup]])
   (:import
-   [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit Font]
+   [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit Font FontMetrics Dimension Component]
    [java.awt.event MouseEvent FocusEvent MouseListener MouseMotionListener FocusListener]
    [javax.swing JFrame JPanel SwingUtilities WindowConstants JLabel BoxLayout]
    [javax.swing.border EmptyBorder]))
 
 (def bg-color
   (if windows?
-    (Color. 0 0 0 1) ;; windows can't handle pure tranparency
+    (Color. 0 0 0 1) ;; windows can't handle pure transparency
     (Color. 0 0 0 0)))
 
 (defn rect->xywh [rect]
@@ -34,26 +34,78 @@
     (when (and x y w h (> w 10) (> h 10))
       (.createScreenCapture robot (Rectangle. x y w h)))))
 
+(defn- get-render-width [font-metrics text]
+  (.stringWidth ^FontMetrics font-metrics text))
+
+(defn- get-entry-max-text-widths [font-metrics dict-entry]
+  (->> (:dict/words dict-entry)
+       (map (juxt :dict/writing :dict/reading))
+       (apply map (partial max-key count))
+       (map (partial get-render-width font-metrics))))
+
+(defn- get-entries-max-text-widths [font-metrics dict-entries]
+  (apply map max (map (partial get-entry-max-text-widths font-metrics) dict-entries)))
+
 (defn- result-panel [entries]
-  (let [panel (JPanel.)
-        font  (.getFont panel)]
-    (.setBorder panel (EmptyBorder. 10 10 10 10))
-    (.setLayout panel (BoxLayout. panel BoxLayout/Y_AXIS))
-    (doseq [e entries]
-      (let [term    (:dict/search-term e)
-            e-panel (JPanel.)
-            label   (JLabel. ^String term)]
-        (.setFont label (Font. (.getName font) (.getStyle font) 24))
-        (.setLayout e-panel (BoxLayout. e-panel BoxLayout/Y_AXIS))
-        (.add e-panel label)
-        (doseq [w (:dict/words e)]
-          (let [jp    (str/join " " (vals (select-keys w [:dict/writing :dict/reading])))
-                en    (str/join ", " (get w :dict/meanings))
-                label (JLabel. (str jp ": " en))]
-            (.setFont label (Font. (.getName font) (.getStyle font) 14))
-            (.add e-panel label)))
-        (.add panel e-panel)))
-    panel))
+  (let [content-panel (JPanel.)
+        default-font  (.getFont content-panel)
+        header-font   (Font. (.getName default-font) (.getStyle default-font) 24)
+        entry-font    (Font. (.getName default-font) (.getStyle default-font) 14)
+        entry-metrics (.getFontMetrics content-panel entry-font)
+        entry-widths  (get-entries-max-text-widths entry-metrics entries)
+        padding       10
+        border        padding
+        [write-w read-w] (map (partial + padding) entry-widths)]
+
+    (.setBorder content-panel (EmptyBorder. border border border border))
+    (.setLayout content-panel (BoxLayout. content-panel BoxLayout/Y_AXIS))
+
+    (doseq [entry entries]
+      (let [entry-panel (JPanel.)
+            term-label  (JLabel. ^String (:dict/search-term entry))]
+
+        (.setFont term-label header-font)
+        (.setLayout entry-panel (BoxLayout. entry-panel BoxLayout/Y_AXIS))
+        (.add entry-panel term-label)
+
+        (doseq [{:keys [dict/writing dict/reading dict/meanings]} (:dict/words entry)]
+          (let [meaning-str  (str/join ", " meanings)
+                word-panel   (JPanel.)
+                word-layout  (BoxLayout. word-panel BoxLayout/X_AXIS)
+                write-label  (JLabel. ^String writing)
+                read-label   (JLabel. ^String reading)
+                mean-label   (JLabel. ^String meaning-str)
+                label-height (.getHeight entry-metrics)
+                write-dim    (Dimension. write-w label-height)
+                read-dim     (Dimension. read-w label-height)]
+
+            (.setAlignmentX word-panel Component/LEFT_ALIGNMENT)
+
+            (doto write-label
+              (.setFont entry-font)
+              (.setPreferredSize write-dim)
+              (.setMinimumSize   write-dim)
+              (.setMaximumSize   write-dim))
+
+            (doto read-label
+              (.setFont entry-font)
+              (.setPreferredSize read-dim)
+              (.setMinimumSize   read-dim)
+              (.setMaximumSize   read-dim))
+
+            (.setFont mean-label entry-font)
+
+            (doto word-panel
+              (.setLayout word-layout)
+              (.add write-label)
+              (.add read-label)
+              (.add mean-label))
+
+            (.add entry-panel word-panel)))
+
+        (.add content-panel entry-panel)))
+
+    content-panel))
 
 (defn focus-listener []
   (proxy [FocusListener] []
