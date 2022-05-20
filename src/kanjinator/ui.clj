@@ -144,6 +144,9 @@
           screenshot-rect (:screenshot-rect state)]
       (.setVisible window false)
       (.setContentPane window (JPanel.))
+      ;; the future contains the call to OpenCV/loadLocally, which needs to finish before we can
+      ;; use any opencv functions. By derefing it, we ensure that OpenCV is initialized before we
+      ;; use it
       @dependency-future
       (->> screenshot
            (get-ocr-words language)
