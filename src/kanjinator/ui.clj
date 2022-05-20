@@ -138,12 +138,13 @@
       (.setColor (Color. 30 130 200 100))
       (.fillRect x y w h))))
 
-(defn- process-selection [^JFrame window state]
+(defn- process-selection [^JFrame window state dependency-future]
   (when-let [screenshot (make-screenshot window (:screenshot-rect state))]
     (let [language        ((resolve (get config :current-language)))
           screenshot-rect (:screenshot-rect state)]
       (.setVisible window false)
       (.setContentPane window (JPanel.))
+      @dependency-future
       (->> screenshot
            (get-ocr-words language)
            (mapcat (partial lookup language))
@@ -152,13 +153,13 @@
       ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
       )))
 
-(defn draw-panel [state ^JFrame window]
+(defn draw-panel [state ^JFrame window dependency-future]
   (let [panel (proxy [JPanel] []
                 (paintComponent [^Graphics2D g]
                   (proxy-super paintComponent g)
                   (let [state @state]
                     (render-selection-rect g state)
-                    (process-selection window state))))]
+                    (process-selection window state dependency-future))))]
     (doto panel
       (.setMinimumSize (.getScreenSize (Toolkit/getDefaultToolkit)))
       (.setOpaque false)
@@ -195,12 +196,12 @@
     (mouseEntered [e])
     (mouseExited [e])))
 
-(defn run-application-window []
+(defn run-application-window [dependency-future]
   (SwingUtilities/invokeLater
    (fn []
      (let [frame (new JFrame)
            state (atom {})
-           panel (draw-panel state frame)]
+           panel (draw-panel state frame dependency-future)]
        (doto frame
          (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
          (.setLocationRelativeTo nil)

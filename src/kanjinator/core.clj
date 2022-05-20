@@ -8,5 +8,4 @@
    [nu.pattern OpenCV]))
 
 (defn -main []
-  (OpenCV/loadLocally)
-  (run-application-window))
+  (run-application-window (future (OpenCV/loadLocally))))
