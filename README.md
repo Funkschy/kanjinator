@@ -13,6 +13,12 @@ Sometimes you have Kanji on your screen that you cannot simply copy, e.g as part
 ### Example
 ![shogi golden king](screenshots/demo-2.png)
 
+## Dependencies
+
+The prebuilt jars are self contained, so you only need to have java installed.
+Unfortunately this tool will only work on Linux and Windows, because tess4j does not currently support MacOS.
+I personally use Openjdk 17, but everything should work in older java versions aswell.
+
 ## Building
 
 You'll need to have [Leiningen](https://leiningen.org/) installed.
