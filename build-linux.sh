@@ -16,6 +16,11 @@ echo "-> building application"
 lein clean
 lein uberjar
 cp ./target/uberjar/*-standalone.jar "$output_dir/kanjinator.jar"
+# remove windows/mac stuff from jar
+zip -d "$output_dir/kanjinator.jar" nu/pattern/opencv/windows/\*
+zip -d "$output_dir/kanjinator.jar" nu/pattern/opencv/osx/\*
+zip -d "$output_dir/kanjinator.jar" win32-x86-64/\*
+zip -d "$output_dir/kanjinator.jar" win32-x86/\*
 
 echo "-> creating startup script"
 startup="
