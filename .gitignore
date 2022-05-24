@@ -16,3 +16,4 @@ lsp
 /.lsp/
 /.idea/
 /*.png
+*.tar.gz
