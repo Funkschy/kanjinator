@@ -32,6 +32,13 @@ sudo dnf install java-17-openjdk tesseract-devel
 java -jar kanjinator-linux.jar
 ```
 
+#### Example: Ubuntu
+
+``` shell
+sudo apt install openjdk-17-jre tesseract-ocr
+java -jar kanjinator-linux.jar
+```
+
 Older/Newer jdks might work, but i didn't test them.
 
 ## Building
