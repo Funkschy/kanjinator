@@ -35,7 +35,9 @@
       (.createScreenCapture robot (Rectangle. x y w h)))))
 
 (defn- get-render-width [font-metrics text]
-  (.stringWidth ^FontMetrics font-metrics text))
+  (if-not (empty? text)
+    (.stringWidth ^FontMetrics font-metrics text)
+    0))
 
 (defn- get-entry-max-text-widths [font-metrics dict-entry]
   (->> (:dict/words dict-entry)
