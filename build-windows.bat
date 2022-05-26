@@ -1,7 +1,7 @@
 @echo off
 
 set output_dir="target/uberjar"
-set jar_name="kanjinator-0.1.0-SNAPSHOT-standalone.jar"
+set jar_name="kanjinator-0.2.2-SNAPSHOT-standalone.jar"
 
 echo "-> building application"
 call lein clean

@@ -13,11 +13,15 @@ Sometimes you have Kanji on your screen that you cannot simply copy, e.g as part
 ### Example
 ![shogi golden king](screenshots/demo-2.png)
 
-## Dependencies
+## Installation
 
-The prebuilt jars are self contained, so you only need to have java installed.
-Unfortunately this tool will only work on Linux and Windows, because tess4j does not currently support MacOS.
-I personally use Openjdk 17, but everything should work in older java versions aswell.
+### Windows
+
+Just use the the msi installer in the releases section and click next/yes until it works.
+
+### Linux
+
+You'll need to have tesseract with the devel packages and openjdk installed on your system. Then just just use `java -jar` to run the jar file.
 
 ## Building
 
