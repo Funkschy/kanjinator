@@ -11,6 +11,7 @@
   :target-path "target/%s"
   :global-vars {*warn-on-reflection* true}
   :jvm-opts ["-Dclojure.tools.logging.factory=kanjinator.logging/logger-factory"]
-  :aliases {"build-linux" ["run" "-m" "kanjinator.build.linux-jar/build-jar"]}
+  :aliases {"build-linux" ["run" "-m" "kanjinator.build.linux-jar/build-jar"]
+            "build-windows" ["run" "-m" "kanjinator.build.windows-msi/build-msi"]}
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
