@@ -21,7 +21,18 @@ Just use the the msi installer in the releases section and click next/yes until 
 
 ### Linux
 
+This tool currently does not support wayland!
+Unfortunately the Robot class from awt simply produces a completely white screenshot on wayland.
 You'll need to have tesseract with the devel packages and openjdk installed on your system. Then just just use `java -jar` to run the jar file.
+
+#### Example: Fedora
+
+``` shell
+sudo dnf install java-17-openjdk tesseract-devel
+java -jar kanjinator-linux.jar
+```
+
+Older/Newer jdks might work, but i didn't test them.
 
 ## Building
 
