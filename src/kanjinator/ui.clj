@@ -4,15 +4,33 @@
    [kanjinator.config :refer [config windows?]]
    [kanjinator.language :refer [get-ocr-words lookup]])
   (:import
-   [java.awt Color Frame Graphics2D Point Rectangle Robot Toolkit Font FontMetrics Dimension Component]
-   [java.awt.event MouseEvent FocusEvent MouseListener MouseMotionListener FocusListener]
-   [javax.swing JFrame JPanel SwingUtilities WindowConstants JLabel BoxLayout]
+   [java.awt
+    Color
+    Component
+    Dimension
+    Font
+    FontMetrics
+    Frame
+    Graphics2D
+    MouseInfo
+    Point
+    Rectangle
+    Robot]
+   [java.awt.event
+    FocusEvent
+    FocusListener
+    MouseEvent
+    MouseListener
+    MouseMotionListener]
+   [java.awt.image BufferedImage]
+   [javax.swing
+    BoxLayout
+    JFrame
+    JLabel
+    JPanel
+    SwingUtilities
+    WindowConstants]
    [javax.swing.border EmptyBorder]))
-
-(def bg-color
-  (if windows?
-    (Color. 0 0 0 1) ;; windows can't handle pure transparency
-    (Color. 0 0 0 0)))
 
 (defn rect->xywh [rect]
   (let [{:keys [^Point start ^Point end]} rect]
@@ -116,22 +134,26 @@
       ;; exit the application when the user clicks on something else
       (System/exit 0))))
 
-(defn- get-end-location [{:keys [start end]}]
-  (Point. (max (.getX ^Point start) (.getX ^Point end))
-          (max (.getY ^Point start) (.getY ^Point end))))
+(defn- get-end-location [& {:keys [start end x-off y-off] :or {x-off 0 y-off 0}}]
+  (Point. (+ x-off (max (.getX ^Point start) (.getX ^Point end)))
+          (+ y-off (max (.getY ^Point start) (.getY ^Point end)))))
 
-(defn- display-results [^JFrame window rect entries]
+(defn- display-results [^JFrame window display-config rect entries]
   (.dispose window)
   ;; just reusing the old window works on linux, but for some reason not on windows
   ;; so just dispose the old one and make a new one
   (if-not (empty? entries)
-    (doto (new JFrame)
-      (.setLocation (get-end-location rect))
-      (.setUndecorated true)
-      (.setContentPane (result-panel entries))
-      (.addFocusListener (focus-listener))
-      (.pack)
-      (.setVisible true))
+    (let [bounds (.getBounds display-config)
+          x-off  (.getX bounds)
+          y-off  (.getY bounds)
+          rect   (get-end-location :x-off x-off :y-off y-off rect)]
+      (doto (new JFrame display-config)
+        (.setLocation rect)
+        (.setUndecorated true)
+        (.setContentPane (result-panel entries))
+        (.addFocusListener (focus-listener))
+        (.pack)
+        (.setVisible true)))
     (System/exit 0)))
 
 (defn- render-selection-rect [^Graphics2D g state]
@@ -150,25 +172,23 @@
       ;; use any opencv functions. By derefing it, we ensure that OpenCV is initialized before we
       ;; use it
       @dependency-future
+      (prn state)
       (->> screenshot
            (get-ocr-words language)
            (mapcat (partial lookup language))
            (doall)
-           (display-results window screenshot-rect))
+           (display-results window (:display-config state) screenshot-rect))
       ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
       )))
 
-(defn draw-panel [state ^JFrame window dependency-future]
-  (let [panel (proxy [JPanel] []
-                (paintComponent [^Graphics2D g]
-                  (proxy-super paintComponent g)
-                  (let [state @state]
-                    (render-selection-rect g state)
-                    (process-selection window state dependency-future))))]
-    (doto panel
-      (.setMinimumSize (.getScreenSize (Toolkit/getDefaultToolkit)))
-      (.setOpaque false)
-      (.setBackground bg-color))))
+(defn draw-panel [state ^JFrame window ^BufferedImage screenshot dependency-future]
+  (proxy [JPanel] []
+    (paintComponent [^Graphics2D g]
+      (proxy-super paintComponent g)
+      (let [state @state]
+        (. g drawImage screenshot 0 0 ^JPanel this)
+        (render-selection-rect g state)
+        (process-selection window state dependency-future)))))
 
 (defn mouse-motion-listener [rect ^JFrame frame]
   (proxy [MouseMotionListener] []
@@ -190,7 +210,7 @@
 (defn mouse-listener [state]
   (proxy [MouseListener] []
     (mouseReleased [^MouseEvent e]
-      (swap! state (fn [{:keys [rect]}] {:screenshot-rect rect}))
+      (swap! state (fn [{:keys [rect] :as state}] (assoc state :screenshot-rect rect)))
       ;; force redraw so we can make a screenshot in the paintComponent method of the JPanel
       ;; we can't do it here, because then the selection rectangle would be in the screenshot
       ;; aswell, which can screw with the OCR
@@ -204,17 +224,26 @@
 (defn run-application-window [dependency-future]
   (SwingUtilities/invokeLater
    (fn []
-     (let [frame (new JFrame)
-           state (atom {})
-           panel (draw-panel state frame dependency-future)]
+     (let [frame  (new JFrame)
+           device (.getDevice (MouseInfo/getPointerInfo))
+           config (.getDefaultConfiguration device)
+           bounds (.getBounds config)
+           state  (atom {:display-config config})
+
+           robot  (new Robot device)
+           snap   (.createScreenCapture robot bounds)
+           panel  (draw-panel state frame snap dependency-future)]
        (doto frame
          (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
          (.setLocationRelativeTo nil)
          (.setUndecorated true)
-         (.setBackground bg-color)
+         (.setResizable true)
+         (.setAlwaysOnTop true)
          (.addMouseMotionListener (mouse-motion-listener state frame))
          (.addMouseListener (mouse-listener state))
          (.setContentPane panel)
          (.pack)
-         (.setVisible true)
-         (.setExtendedState Frame/MAXIMIZED_BOTH))))))
+         (.setExtendedState Frame/MAXIMIZED_BOTH)
+         (.setVisible true))
+
+       (.setFullScreenWindow device frame)))))
