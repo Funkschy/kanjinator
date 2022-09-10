@@ -15,7 +15,8 @@
     MouseInfo
     Point
     Rectangle
-    Robot]
+    Robot
+    GraphicsConfiguration]
    [java.awt.event
     FocusEvent
     FocusListener
@@ -40,17 +41,17 @@
        (abs (- (.getX end) (.getX start)))
        (abs (- (.getY end) (.getY start)))])))
 
-(defn- make-screenshot [window rect]
+(defn- trim-screenshot [^JFrame window ^BufferedImage screenshot rect]
   (let [translate #(when %
                      (doto (.clone ^Point %)
                        (SwingUtilities/convertPointToScreen window)))
         rect (-> rect
                  (update :start translate)
                  (update :end translate))
-        robot (Robot.)
         [x y w h] (rect->xywh rect)]
+
     (when (and x y w h (> w 10) (> h 10))
-      (.createScreenCapture robot (Rectangle. x y w h)))))
+      (.getSubimage screenshot x y w h))))
 
 (defn- get-render-width [font-metrics text]
   (if-not (empty? text)
@@ -138,7 +139,7 @@
   (Point. (+ x-off (max (.getX ^Point start) (.getX ^Point end)))
           (+ y-off (max (.getY ^Point start) (.getY ^Point end)))))
 
-(defn- display-results [^JFrame window display-config rect entries]
+(defn- display-results [^JFrame window ^GraphicsConfiguration display-config rect entries]
   (.dispose window)
   ;; just reusing the old window works on linux, but for some reason not on windows
   ;; so just dispose the old one and make a new one
@@ -162,24 +163,25 @@
       (.setColor (Color. 30 130 200 100))
       (.fillRect x y w h))))
 
-(defn- process-selection [^JFrame window state dependency-future]
-  (when-let [screenshot (make-screenshot window (:screenshot-rect state))]
-    (let [language        ((resolve (get config :current-language)))
-          screenshot-rect (:screenshot-rect state)]
-      (.setVisible window false)
-      (.setContentPane window (JPanel.))
-      ;; the future contains the call to OpenCV/loadLocally, which needs to finish before we can
-      ;; use any opencv functions. By derefing it, we ensure that OpenCV is initialized before we
-      ;; use it
-      @dependency-future
-      (prn state)
-      (->> screenshot
-           (get-ocr-words language)
-           (mapcat (partial lookup language))
-           (doall)
-           (display-results window (:display-config state) screenshot-rect))
-      ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
-      )))
+(defn- process-selection [^JFrame window {:keys [screenshot screenshot-rect] :as state} dependency-future]
+  (when screenshot-rect
+    (when-let [screenshot (trim-screenshot window screenshot screenshot-rect)]
+      (let [language        ((resolve (get config :current-language)))
+            screenshot-rect (:screenshot-rect state)]
+        (.setVisible window false)
+        (.setContentPane window (JPanel.))
+        ;; the future contains the call to OpenCV/loadLocally, which needs to finish before we can
+        ;; use any opencv functions. By derefing it, we ensure that OpenCV is initialized before we
+        ;; use it
+        @dependency-future
+        (prn state)
+        (->> screenshot
+             (get-ocr-words language)
+             (mapcat (partial lookup language))
+             (doall)
+             (display-results window (:display-config state) screenshot-rect))
+        ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
+        ))))
 
 (defn draw-panel [state ^JFrame window ^BufferedImage screenshot dependency-future]
   (proxy [JPanel] []
@@ -228,10 +230,10 @@
            device (.getDevice (MouseInfo/getPointerInfo))
            config (.getDefaultConfiguration device)
            bounds (.getBounds config)
-           state  (atom {:display-config config})
 
            robot  (new Robot device)
            snap   (.createScreenCapture robot bounds)
+           state  (atom {:display-config config :screenshot snap})
            panel  (draw-panel state frame snap dependency-future)]
        (doto frame
          (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
