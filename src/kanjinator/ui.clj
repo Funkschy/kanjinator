@@ -1,7 +1,7 @@
 (ns kanjinator.ui
   (:require
    [clojure.string :as str]
-   [kanjinator.config :refer [config windows?]]
+   [kanjinator.config :refer [config]]
    [kanjinator.language :refer [get-ocr-words lookup]])
   (:import
    [java.awt
@@ -15,7 +15,8 @@
     MouseInfo
     Point
     Robot
-    GraphicsConfiguration]
+    GraphicsConfiguration
+    GraphicsDevice]
    [java.awt.event
     FocusEvent
     FocusListener
@@ -29,8 +30,7 @@
     JLabel
     JPanel
     SwingUtilities
-    WindowConstants
-    RepaintManager]
+    WindowConstants]
    [javax.swing.border EmptyBorder]))
 
 (defn rect->xywh [rect]
@@ -140,9 +140,9 @@
     (let [bounds (.getBounds display-config)
           x-off  (.getX bounds)
           y-off  (.getY bounds)
-          rect   (get-end-location :x-off x-off :y-off y-off rect)]
+          point  (get-end-location :x-off x-off :y-off y-off rect)]
       (doto (new JFrame display-config)
-        (.setLocation rect)
+        (.setLocation point)
         (.setUndecorated true)
         (.setContentPane (result-panel entries))
         (.addFocusListener (focus-listener))
@@ -156,11 +156,14 @@
       (.setColor (Color. 30 130 200 100))
       (.fillRect x y w h))))
 
-(defn- process-selection [^JFrame window {:keys [screenshot screenshot-rect] :as state} dependency-future]
+(defn- process-selection
+  [^JFrame window
+   {:keys [screenshot screenshot-rect device] :as state}
+   dependency-future]
   (when screenshot-rect
     (when-let [screenshot (trim-screenshot screenshot screenshot-rect)]
-      (let [language        ((resolve (get config :current-language)))
-            screenshot-rect (:screenshot-rect state)]
+      (let [language ((resolve (get config :current-language)))]
+        (.setFullScreenWindow ^GraphicsDevice device nil)
         (.setVisible window false)
         (.setContentPane window (JPanel.))
         ;; the future contains the call to OpenCV/loadLocally, which needs to finish before we can
@@ -220,7 +223,7 @@
 
            robot  (new Robot device)
            snap   (.createScreenCapture robot bounds)
-           state  (atom {:display-config config :screenshot snap})
+           state  (atom {:display-config config :screenshot snap :device device})
            panel  (draw-panel state frame snap dependency-future)]
 
        (doto frame
