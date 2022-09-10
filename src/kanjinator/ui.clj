@@ -14,7 +14,6 @@
     Graphics2D
     MouseInfo
     Point
-    Rectangle
     Robot
     GraphicsConfiguration]
    [java.awt.event
@@ -30,7 +29,8 @@
     JLabel
     JPanel
     SwingUtilities
-    WindowConstants]
+    WindowConstants
+    RepaintManager]
    [javax.swing.border EmptyBorder]))
 
 (defn rect->xywh [rect]
@@ -41,15 +41,8 @@
        (abs (- (.getX end) (.getX start)))
        (abs (- (.getY end) (.getY start)))])))
 
-(defn- trim-screenshot [^JFrame window ^BufferedImage screenshot rect]
-  (let [translate #(when %
-                     (doto (.clone ^Point %)
-                       (SwingUtilities/convertPointToScreen window)))
-        rect (-> rect
-                 (update :start translate)
-                 (update :end translate))
-        [x y w h] (rect->xywh rect)]
-
+(defn- trim-screenshot [^BufferedImage screenshot rect]
+  (let [[x y w h] (rect->xywh rect)]
     (when (and x y w h (> w 10) (> h 10))
       (.getSubimage screenshot x y w h))))
 
@@ -165,7 +158,7 @@
 
 (defn- process-selection [^JFrame window {:keys [screenshot screenshot-rect] :as state} dependency-future]
   (when screenshot-rect
-    (when-let [screenshot (trim-screenshot window screenshot screenshot-rect)]
+    (when-let [screenshot (trim-screenshot screenshot screenshot-rect)]
       (let [language        ((resolve (get config :current-language)))
             screenshot-rect (:screenshot-rect state)]
         (.setVisible window false)
@@ -174,7 +167,6 @@
         ;; use any opencv functions. By derefing it, we ensure that OpenCV is initialized before we
         ;; use it
         @dependency-future
-        (prn state)
         (->> screenshot
              (get-ocr-words language)
              (mapcat (partial lookup language))
@@ -201,12 +193,7 @@
                    (update-in [:rect :start] (fnil identity (.getPoint e)))
                    (assoc-in [:rect :end] (.getPoint e)))))
       ;; update the frame to draw the current rect
-      ;; I have no idea why, but for some reason one way of updating only works on linux and the
-      ;; other only works on windows. This took me quite a few hours to find.
-      ;; Write once run anywhere btw
-      (if windows?
-        (-> frame .getContentPane .repaint)
-        (.update frame (.getGraphics frame))))
+      (-> frame .getContentPane .repaint))
     (mouseMoved [^MouseEvent e])))
 
 (defn mouse-listener [state]
@@ -235,6 +222,7 @@
            snap   (.createScreenCapture robot bounds)
            state  (atom {:display-config config :screenshot snap})
            panel  (draw-panel state frame snap dependency-future)]
+
        (doto frame
          (.setDefaultCloseOperation WindowConstants/EXIT_ON_CLOSE)
          (.setLocationRelativeTo nil)
