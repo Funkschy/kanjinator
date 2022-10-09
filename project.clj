@@ -1,4 +1,4 @@
-(defproject kanjinator "0.2.2"
+(defproject kanjinator "0.2.3"
   :description "A simple tool to translate Japanese words on your screen"
   :license {:name "MIT"}
   :dependencies [[org.clojure/clojure "1.11.1"]
