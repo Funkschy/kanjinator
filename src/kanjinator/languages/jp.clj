@@ -58,7 +58,7 @@
     "nul"
     "/dev/null"))
 
-(defn- ^Tesseract new-tesseract [page-seg-mode language]
+(defn- new-tesseract ^Tesseract [page-seg-mode language]
   (doto (new Tesseract)
     (.setVariable "debug_file" trash-file)
     (.setDatapath (.getAbsolutePath (LoadLibs/extractTessResources "tessdata")))
@@ -101,11 +101,12 @@
 
 (defrecord Japanese []
   Language
-  (get-ocr-words [_ img]
+  (get-ocr-text [_ img]
     (-> img
         (preprocess)
-        (perform-orc)
-        (split&filter-words)))
+        (perform-orc)))
+  (split-words [_ text]
+    (split&filter-words text))
   (lookup [_ word]
     (lookup-word-in-dictionary word)))
 

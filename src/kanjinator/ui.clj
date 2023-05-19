@@ -1,8 +1,10 @@
 (ns kanjinator.ui
   (:require
+   [clojure.java.io :refer [input-stream resource]]
    [clojure.string :as str]
+   [clojure.tools.logging :as log]
    [kanjinator.config :refer [config]]
-   [kanjinator.language :refer [get-ocr-words lookup]])
+   [kanjinator.language :refer [get-ocr-text lookup split-words]])
   (:import
    [java.awt
     Color
@@ -12,24 +14,28 @@
     FontMetrics
     Frame
     Graphics2D
+    GraphicsConfiguration
+    GraphicsDevice
     MouseInfo
     Point
-    Robot
-    GraphicsConfiguration
-    GraphicsDevice]
+    Robot]
    [java.awt.event
-    FocusEvent
-    FocusListener
+    WindowEvent
+    WindowFocusListener
     MouseEvent
     MouseListener
     MouseMotionListener]
    [java.awt.image BufferedImage]
    [javax.swing
+    Box
     BoxLayout
     JFrame
     JLabel
     JPanel
+    JSeparator
+    JTextField
     SwingUtilities
+    UIManager
     WindowConstants]
    [javax.swing.border EmptyBorder]))
 
@@ -60,11 +66,11 @@
 (defn- get-entries-max-text-widths [font-metrics dict-entries]
   (apply map max (map (partial get-entry-max-text-widths font-metrics) dict-entries)))
 
-(defn- result-panel [entries]
+(defn- result-panel [full-text entries]
   (let [content-panel (JPanel.)
-        default-font  (.getFont content-panel)
-        header-font   (Font. (.getName default-font) (.getStyle default-font) 24)
-        entry-font    (Font. (.getName default-font) (.getStyle default-font) 14)
+        font          (Font/createFont Font/TRUETYPE_FONT (input-stream (resource "NotoSansJP-Regular.ttf")))
+        header-font   (.deriveFont font 24.0)
+        entry-font    (.deriveFont font 14.0)
         entry-metrics (.getFontMetrics content-panel entry-font)
         entry-widths  (get-entries-max-text-widths entry-metrics entries)
         padding       10
@@ -73,6 +79,17 @@
 
     (.setBorder content-panel (EmptyBorder. border border border border))
     (.setLayout content-panel (BoxLayout. content-panel BoxLayout/Y_AXIS))
+
+    (doto content-panel
+      (.add
+       (doto (JTextField. ^String full-text)
+         (.setFont header-font)
+         (.setEditable false)
+         (.setBorder nil)
+         (.setForeground (UIManager/getColor "Label.foreground"))))
+      ;; invisible separator
+      (.add (Box/createVerticalStrut 10))
+      (.add (JSeparator.)))
 
     (doseq [entry entries]
       (let [entry-panel (JPanel.)
@@ -121,10 +138,11 @@
 
     content-panel))
 
-(defn focus-listener []
-  (proxy [FocusListener] []
-    (focusGained [^FocusEvent e])
-    (focusLost [^FocusEvent e]
+(defn window-focus-listener []
+  (proxy [WindowFocusListener] []
+    (windowGainedFocus [^WindowEvent e])
+    (windowLostFocus [^WindowEvent e]
+      (log/info "Lost focus. Closing")
       ;; exit the application when the user clicks on something else
       (System/exit 0))))
 
@@ -132,7 +150,7 @@
   (Point. (+ x-off (max (.getX ^Point start) (.getX ^Point end)))
           (+ y-off (max (.getY ^Point start) (.getY ^Point end)))))
 
-(defn- display-results [^JFrame window ^GraphicsConfiguration display-config rect entries]
+(defn- display-results [^JFrame window ^GraphicsConfiguration display-config rect full-text entries]
   (.dispose window)
   ;; just reusing the old window works on linux, but for some reason not on windows
   ;; so just dispose the old one and make a new one
@@ -144,8 +162,8 @@
       (doto (new JFrame display-config)
         (.setLocation point)
         (.setUndecorated true)
-        (.setContentPane (result-panel entries))
-        (.addFocusListener (focus-listener))
+        (.setContentPane (result-panel full-text entries))
+        (.addWindowFocusListener (window-focus-listener))
         (.pack)
         (.setVisible true)))
     (System/exit 0)))
@@ -170,11 +188,12 @@
         ;; use any opencv functions. By derefing it, we ensure that OpenCV is initialized before we
         ;; use it
         @dependency-future
-        (->> screenshot
-             (get-ocr-words language)
-             (mapcat (partial lookup language))
-             (doall)
-             (display-results window (:display-config state) screenshot-rect))
+        (let [text (get-ocr-text language screenshot)]
+          (->> text
+               (split-words language)
+               (mapcat (partial lookup language))
+               (doall)
+               (display-results window (:display-config state) screenshot-rect text)))
         ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
         ))))
 
