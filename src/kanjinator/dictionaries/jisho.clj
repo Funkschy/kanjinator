@@ -4,18 +4,31 @@
    [clojure.set :as s]
    [clojure.tools.logging :as log])
   (:import
+   [java.io IOException]
    [java.net URLEncoder]
    [java.nio.charset StandardCharsets]))
 
 (defn- encode-search-term [^String word]
   (URLEncoder/encode word StandardCharsets/UTF_8))
 
+(defn- slurp-with-retry [tries url]
+  (loop [n tries]
+    (if-let [result (try
+                      (slurp url)
+                      (catch IOException e
+                        (when (zero? n)
+                          (throw e))))]
+      result
+      (do
+        (log/info "Jisho call failed. Retrying" n "more times")
+        (recur (dec n))))))
+
 (def ^:private jisho-api-url "https://jisho.org/api/v1/search/words?keyword=")
 (defn- get-from-jisho-api [word]
   (->> word
-       (encode-search-term)
+       encode-search-term
        (str jisho-api-url)
-       (slurp)))
+       (slurp-with-retry 3)))
 
 (defn- select&rename [data-m key-m]
   (->> data-m
