@@ -167,13 +167,20 @@
                     (.setLocation f location)
                     (.setLocationRelativeTo f nil)))]
     (doto (new JFrame display-config)
-      ;; center the window if location was nil
-      set-pos
       (.setUndecorated true)
       (.setContentPane (result-panel full-text entries))
       (.addWindowFocusListener (window-focus-listener))
       .pack
+      ;; center the window if location was nil
+      set-pos
       (.setVisible true))))
+
+(defn display-results-no-existing-window [full-text entries]
+  (when-not (empty? entries)
+    (set-native-look-and-feel)
+    (let [device (.getDevice (MouseInfo/getPointerInfo))
+          config (.getDefaultConfiguration device)]
+      (show-result-window config nil full-text entries))))
 
 (defn- display-results [^JFrame window ^GraphicsConfiguration display-config rect full-text entries]
   (.dispose window)
@@ -219,10 +226,14 @@
   (proxy [JPanel] []
     (paintComponent [^Graphics2D g]
       (proxy-super paintComponent g)
-      (let [state @state]
-        (. g drawImage screenshot 0 0 ^JPanel this)
-        (render-selection-rect g state)
-        (process-selection window state dependency-future)))))
+      (try
+        (let [state @state]
+          (. g drawImage screenshot 0 0 ^JPanel this)
+          (render-selection-rect g state)
+          (process-selection window state dependency-future))
+        (catch Exception e
+          (log/error e)
+          (System/exit 0))))))
 
 (defn mouse-motion-listener [rect ^JFrame frame]
   (proxy [MouseMotionListener] []
