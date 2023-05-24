@@ -2,7 +2,7 @@
   (:require [clojure.java.shell :refer [sh]]
             [clojure.edn :as edn]))
 
-(def output-dir "target/uberjar")
+(def output-dir "target/default+uberjar")
 (def jar-name (->> "project.clj"
                    (slurp)
                    (edn/read-string)
