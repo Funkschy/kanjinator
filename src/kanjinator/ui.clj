@@ -29,15 +29,19 @@
    [javax.swing
     Box
     BoxLayout
+    JComponent
     JFrame
     JLabel
     JPanel
     JSeparator
-    JTextField
+    JTextPane
     SwingUtilities
     UIManager
     WindowConstants]
    [javax.swing.border EmptyBorder]))
+
+(defn- set-native-look-and-feel []
+  (UIManager/setLookAndFeel (UIManager/getSystemLookAndFeelClassName)))
 
 (defn rect->xywh [rect]
   (let [{:keys [^Point start ^Point end]} rect]
@@ -82,10 +86,15 @@
 
     (doto content-panel
       (.add
-       (doto (JTextField. ^String full-text)
+       (doto (JTextPane.)
+         (.setContentType "text/plain")
+         (.setText ^String (str/trim full-text))
          (.setFont header-font)
          (.setEditable false)
          (.setBorder nil)
+         (.setBackground nil)
+         (.setOpaque false)
+         (.setAlignmentX JComponent/LEFT_ALIGNMENT)
          (.setForeground (UIManager/getColor "Label.foreground"))))
       ;; invisible separator
       (.add (Box/createVerticalStrut 10))
@@ -96,8 +105,10 @@
             term-label  (JLabel. ^String (:dict/search-term entry))]
 
         (.setFont term-label header-font)
-        (.setLayout entry-panel (BoxLayout. entry-panel BoxLayout/Y_AXIS))
-        (.add entry-panel term-label)
+        (doto entry-panel
+          (.setLayout  (BoxLayout. entry-panel BoxLayout/Y_AXIS))
+          (.setAlignmentX  JComponent/LEFT_ALIGNMENT)
+          (.add  term-label))
 
         (doseq [{:keys [dict/writing dict/reading dict/meanings]} (:dict/words entry)]
           (let [meaning-str  (str/join ", " meanings)
@@ -150,6 +161,20 @@
   (Point. (+ x-off (max (.getX ^Point start) (.getX ^Point end)))
           (+ y-off (max (.getY ^Point start) (.getY ^Point end)))))
 
+(defn- show-result-window [^GraphicsConfiguration display-config ^Point location full-text entries]
+  (let [set-pos (fn [^JFrame f]
+                  (if location
+                    (.setLocation f location)
+                    (.setLocationRelativeTo f nil)))]
+    (doto (new JFrame display-config)
+      ;; center the window if location was nil
+      set-pos
+      (.setUndecorated true)
+      (.setContentPane (result-panel full-text entries))
+      (.addWindowFocusListener (window-focus-listener))
+      .pack
+      (.setVisible true))))
+
 (defn- display-results [^JFrame window ^GraphicsConfiguration display-config rect full-text entries]
   (.dispose window)
   ;; just reusing the old window works on linux, but for some reason not on windows
@@ -159,13 +184,7 @@
           x-off  (.getX bounds)
           y-off  (.getY bounds)
           point  (get-end-location :x-off x-off :y-off y-off rect)]
-      (doto (new JFrame display-config)
-        (.setLocation point)
-        (.setUndecorated true)
-        (.setContentPane (result-panel full-text entries))
-        (.addWindowFocusListener (window-focus-listener))
-        (.pack)
-        (.setVisible true)))
+      (show-result-window display-config point full-text entries))
     (System/exit 0)))
 
 (defn- render-selection-rect [^Graphics2D g state]
@@ -192,7 +211,6 @@
           (->> text
                (split-words language)
                (mapcat (partial lookup language))
-               (doall)
                (display-results window (:display-config state) screenshot-rect text)))
         ;; (.dispatchEvent window (WindowEvent. window WindowEvent/WINDOW_CLOSING))
         ))))
@@ -235,6 +253,7 @@
 (defn run-application-window [dependency-future]
   (SwingUtilities/invokeLater
    (fn []
+     (set-native-look-and-feel)
      (let [frame  (new JFrame)
            device (.getDevice (MouseInfo/getPointerInfo))
            config (.getDefaultConfiguration device)
